@@ -56,6 +56,13 @@ builder.Services.AddEndpointsApiExplorer();
 // Build the application
 var app = builder.Build();
 
+//Automatical migrations 
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    db.Database.Migrate();
+}
+
 // Use HTTPS redirection middleware
 app.UseHttpsRedirection();
 

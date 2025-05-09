@@ -2,12 +2,12 @@
 using Backend_core.Models;
 using Backend_core.Models.Backend_core.Dtos;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace Backend_core.Controllers
 {
+    // Require authorization by default for all endpoints
     [Authorize]
     [ApiController]
     [Route("api/contacts")]
@@ -20,6 +20,8 @@ namespace Backend_core.Controllers
             _context = context;
         }
 
+        // GET: api/contacts
+        // Publicly available endpoint that retrieves all contacts
         [HttpGet]
         [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ContactDto>>> GetContacts()
@@ -29,6 +31,7 @@ namespace Backend_core.Controllers
                 .Include(c => c.Subcategory)
                 .ToListAsync();
 
+            // Map database entities to DTOs
             var result = contacts.Select(c => new ContactDto
             {
                 Id = c.Id,
@@ -47,19 +50,22 @@ namespace Backend_core.Controllers
             return Ok(result);
         }
 
+
+        // POST: api/contacts
+        // Creates a new contact
         [HttpPost]
         public async Task<IActionResult> CreateContact([FromBody] UpdateContactDto dto)
         {
             if (!ModelState.IsValid)
                 return BadRequest(ModelState);
 
-            // Walidacja unikalności e-maila
+            // Validate unique email
             var emailExists = await _context.Contacts.AnyAsync(c => c.Email == dto.Email);
             if (emailExists)
             {
                 return BadRequest(new
                 {
-                    message = "Użytkownik z takim adresem e-mail już istnieje."
+                    message = "A contact with this email already exists."
                 });
             }
 
@@ -79,9 +85,12 @@ namespace Backend_core.Controllers
             _context.Contacts.Add(contact);
             await _context.SaveChangesAsync();
 
-            return Ok(contact); // ← zwracamy to, co stworzyliśmy
+            return Ok(contact); 
         }
 
+
+        // GET: api/contacts/{id}
+        // Retrieves a single contact by ID
         [HttpGet("{id}")]
         public async Task<ActionResult<Contact>> GetContactById(int id)
         {
@@ -104,7 +113,7 @@ namespace Backend_core.Controllers
             var contact = await _context.Contacts.FindAsync(id);
             if (contact == null)
             {
-                return NotFound("Nie znaleziono kontaktu.");
+                return NotFound("Contact not found.");
             }
 
             _context.Contacts.Remove(contact);
@@ -114,6 +123,8 @@ namespace Backend_core.Controllers
         }
 
 
+        // PUT: api/contacts/{id}
+        // Updates an existing contact by ID
         [HttpPut("{id}")]
         public async Task<IActionResult> UpdateContact(int id, UpdateContactDto dto)
         {
@@ -124,10 +135,10 @@ namespace Backend_core.Controllers
             if (contact == null)
                 return NotFound();
 
-            // Logika zależna od kategorii
+            // Get the category to validate category-specific logic
             var category = await _context.Categories.Include(c => c.Subcategories).FirstOrDefaultAsync(c => c.Id == dto.CategoryId);
             if (category == null)
-                return BadRequest("Podana kategoria nie istnieje.");
+                return BadRequest("Selected category does not exist.");
 
             contact.FirstName = dto.FirstName;
             contact.LastName = dto.LastName;
@@ -137,7 +148,7 @@ namespace Backend_core.Controllers
             contact.BirthDate = dto.BirthDate;
             contact.CategoryId = dto.CategoryId;
 
-            // Jeśli "służbowy", wymagana SubcategoryId, brak Custom
+            // Business logic depending on the category name
             if (category.Name.ToLower() == "służbowy")
             {
                 if (dto.SubcategoryId == null)
@@ -146,13 +157,13 @@ namespace Backend_core.Controllers
                 contact.SubcategoryId = dto.SubcategoryId;
                 contact.CustomSubcategory = null;
             }
-            // Jeśli "inny", wymagana CustomSubcategory, brak SubcategoryId
+            // For 'Inne' category, CustomSubcategory must be provided
             else if (category.Name.ToLower() == "inne")
             {
                 if (string.IsNullOrWhiteSpace(dto.CustomSubcategory))
-                    return BadRequest("Dla kategorii 'Inny' wymagana jest niestandardowa podkategoria.");
+                    return BadRequest("Custom subcategory is required for 'Inne' category.");
 
-                // Sprawdź czy taka podkategoria już istnieje w tej kategorii
+                // Check if the subcategory already exists
                 var existingSub = category.Subcategories
                     .FirstOrDefault(s => s.Name.ToLower() == dto.CustomSubcategory.ToLower());
 
@@ -177,9 +188,9 @@ namespace Backend_core.Controllers
                     contact.CustomSubcategory = null;
                 }
             }
-            // W pozostałych przypadkach: brak subkategorii
             else
             {
+                // For other categories, no subcategories are needed
                 contact.SubcategoryId = null;
                 contact.CustomSubcategory = null;
             }

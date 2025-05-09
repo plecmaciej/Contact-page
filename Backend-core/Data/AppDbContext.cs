@@ -1,6 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Backend_core.Models;
-using System.Collections.Generic;
 
 namespace Backend_core.Data
 {
